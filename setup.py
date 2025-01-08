@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-import SmallShovelPy
+# import SmallShovelPy
 
 
 with open("requirements.txt") as f:
@@ -7,8 +7,10 @@ with open("requirements.txt") as f:
 
 setup(
     name="SmallShovelPy",
-    version=SmallShovelPy.__version__,
-    author=SmallShovelPy.__author__,
+    # version=SmallShovelPy.__version__,
+    # author=SmallShovelPy.__author__,
+    version='0.0.1',
+    author='Small Shovel',
     author_email="seth@smallshovel.com",
     description="Small Shovel's custom library for building and scheduling data pipelines",
     long_description=open("README.md").read(),

@@ -2,7 +2,7 @@
 
 # Installation
 ```bash
-pip install 
+pip install https://github.com/Small-Shovel-Developers/SmallShovelPy.git
 ```
 
 # Usage

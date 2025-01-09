@@ -9,7 +9,7 @@ setup(
     name="SmallShovelPy",
     # version=SmallShovelPy.__version__,
     # author=SmallShovelPy.__author__,
-    version='0.0.2',
+    version='0.0.3',
     author='Small Shovel',
     author_email="seth@smallshovel.com",
     description="Small Shovel's custom library for building and scheduling data pipelines",

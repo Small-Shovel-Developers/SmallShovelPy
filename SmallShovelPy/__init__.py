@@ -1,11 +1,15 @@
 import os
 import importlib
+import json
 
 
-# Data Payload
-__version__ = "0.0.3"
-__author__ = "Small Shovel"
-__license__ = "GPLv3"
+# Metadata
+with open('metadata.json', 'r') as file:
+    metadata = json.load(file)
+
+__version__ = metadata["__version__"]
+__author__ = metadata["__author__"]
+__license__ = metadata["__license__"]
 
 
 # Get the current directory

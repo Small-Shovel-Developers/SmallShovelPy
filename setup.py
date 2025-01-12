@@ -1,16 +1,17 @@
 from setuptools import setup, find_packages
-# import SmallShovelPy
+import json
 
+# Metadata
+with open('metadata.json', 'r') as file:
+    metadata = json.load(file)
 
 with open("requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setup(
     name="SmallShovelPy",
-    # version=SmallShovelPy.__version__,
-    # author=SmallShovelPy.__author__,
-    version='0.0.3',
-    author='Small Shovel',
+    version = metadata["__version__"],
+    author = metadata["__author__"],
     author_email="seth@smallshovel.com",
     description="Small Shovel's custom library for building and scheduling data pipelines",
     long_description=open("README.md").read(),

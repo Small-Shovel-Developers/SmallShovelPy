@@ -62,8 +62,7 @@ class API:
         print(type(df_json))
 
         if len(df_json) < 50_000:
-            self.send_data(key_path, table, df_json)
-            time.sleep(1)
+            return self.send_data(key_path, table, df_json)
         else:
             print(f"{datetime.datetime.now()}: Table is too large, initializing in API and chunking data...")
             self.send_data(key_path, table, [])
@@ -75,19 +74,23 @@ class API:
             print(f"{datetime.datetime.now()}: Chunks to transmit: {len(chunks)}")
 
             failed_rows = []
+            status_message = ""
+            n = 0
 
             print(f"{datetime.datetime.now()}: Beginning transmission of chunks...")
             for chunk in tqdm(chunks, desc=f"Uploading {table} data", unit="chunks"):
-                # print(f"{datetime.datetime.now()}: transmitting chunk...")
+                n+=1
 
                 status = self.extend_data(key_path, table, chunk)
-                # print(status)
+                status_message += f"- Chunk {n} Transmit Success: {status}\n"
+
                 if not status:
                     failed_rows += chunk
 
                 time.sleep(1)
             
             print(f"{table} had {len(failed_rows)} failed rows")
+            return status
 
     def append_table(self, df, key_path, table):
 
@@ -100,27 +103,29 @@ class API:
         print(type(df_json))
 
         if len(df_json) < 50_000:
-            self.extend_data(key_path, table, df_json)
-            time.sleep(1)
+            return self.extend_data(key_path, table, df_json)
         else:
             print(f"{datetime.datetime.now()}: Chunking data for transmission...")
             chunk_size = 20_000
             chunks = [df_json[i:i + chunk_size] for i in range(0, len(df_json), chunk_size)]
 
             failed_rows = []
+            status_message = ""
+            n = 0
 
             print(f"{datetime.datetime.now()}: Beginning transmission of chunks...")
             for chunk in tqdm(chunks, desc=f"Uploading {table} data", unit="chunks"):
-                # print(f"{datetime.datetime.now()}: transmitting chunk...")
+                n+=1
 
                 status = self.extend_data(key_path, table, chunk)
-                # print(status)
+                status_message += f"- Chunk {n} Transmit Success: {status}\n"
                 if not status:
                     failed_rows += chunk
 
                 time.sleep(1)
             
             print(f"{table} had {len(failed_rows)} failed rows")
+            return status
 
 # Transmitting Data
 # current_time = datetime.datetime.utcnow()

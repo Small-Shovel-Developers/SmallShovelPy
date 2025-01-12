@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import json
 
 # Metadata
-with open('metadata.json', 'r') as file:
+with open('SmallShovelPy/metadata.json', 'r') as file:
     metadata = json.load(file)
 
 with open("requirements.txt") as f:

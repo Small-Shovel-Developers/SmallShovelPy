@@ -1,11 +1,17 @@
 import os
 import importlib
 import json
+import json
+from importlib.resources import files
 
 
 # Metadata
-with open('metadata.json', 'r') as file:
-    metadata = json.load(file)
+def load_metadata():
+    metadata_file = files('SmallShovelPy').joinpath('metadata.json')
+    with metadata_file.open('r') as file:
+        return json.load(file)
+
+metadata = load_metadata()
 
 __version__ = metadata["__version__"]
 __author__ = metadata["__author__"]

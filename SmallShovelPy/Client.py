@@ -235,8 +235,10 @@ class Client:
                             self.schedule_pipeline(pipeline_name, parts[4], **trigger_kwargs)
                             return f"Scheduled {pipeline_name}"
                         except:
-                            return f"Unable to schedule {pipeline_name} with triggers:\n{'\n    - '.join(parts[4:])}"
+                            triggers = '\n    - '.join(parts[4:])
+                            return f"Unable to schedule {pipeline_name} with triggers:\n{triggers}"
                 elif parts[3] == "add_task":
+                    pass
             else:
                 return f"No pipeline with name {pipeline_name}"
         

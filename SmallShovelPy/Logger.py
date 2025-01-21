@@ -56,7 +56,7 @@ class Logger:
         """
         Decorator that logs any print statements and other IO within the wrapped function.
         
-        ## Decorator Example Usage:
+        ***Decorator Example Usage:***
             @Logger("example_logs", logging.INFO).log_io
         """
         def wrapper(*args, **kwargs):

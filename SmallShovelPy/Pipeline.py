@@ -52,6 +52,14 @@ class Pipeline:
             else:
                 raise ValueError("Must specify shell type and command to run together.")
 
+    def remove_task(self, task_index):
+        '''
+        Method that removes a specified task from the `tasks` list
+        '''
+        try:
+            self.tasks.remove(self.tasks[task_index])
+        except ValueError:
+            print(f"{task_index} is not in the task list")
 
     def execute(self, params=None):
         '''

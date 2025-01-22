@@ -46,6 +46,7 @@ class Client:
                     # params += '\n-----------------------'
                     data['Schedule Parameters'].append(params)
             except:
+                data['Pipeline Name'].append(s)
                 data['Trigger Type'].append('')
                 data['Schedule Parameters'].append('')
 
@@ -150,6 +151,7 @@ class Client:
 
     def run(self):
         self.running = True
+        print("Looking for an open port, this may take a moment...")
         scheduler_thread = threading.Thread(target=self.start_scheduler, daemon=True)
         service_thread = threading.Thread(target=self.run_service, daemon=True)
         
@@ -289,6 +291,7 @@ class Client:
                 elif parts[3] == "add_task":
                     if parts[4] == "file":
                         file =  ' '.join(parts[5:])
+                        file = os.path.expanduser(file)
                         if os.path.isfile(file) and file.endswith('.py'):
                             pipeline.add_task(file=file)
                             return f"{pipeline_name} added {file} to tasks"
@@ -346,7 +349,12 @@ class Client:
 
 if __name__ == "__main__":
 
-    from Pipeline import Pipeline
+    name = "SmallShovelClient"
+
+    if sys.argv[1] == "--name":
+        name = sys.argv[2]
+
+    client = Client(client_name=name)
 
     def sample():
         print("Task 1 complete.")
@@ -355,7 +363,7 @@ if __name__ == "__main__":
     p1 = Pipeline(name="P1")
     p1.add_task(sample)
 
-    client = Client("Client2")
     client.add_pipeline(p1)
     client.schedule_pipeline("P1", "cron", hour=13, minute=2, day_of_week="wed")
+
     client.run()

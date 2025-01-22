@@ -14,6 +14,10 @@ Available commands:
   - select client <client_name>: Select a specific client to interact with.
   - show pipelines: Show pipelines for the selected client.
   - run pipeline <pipeline_name>: Run a specific pipeline on the selected client.
+  - create pipeline <pipeline_name>:
+  - update pipeline
+  - shutdown: Shutdown the selected client.
+  - shutdown <client>: Shutdown the specified client.
   - ex: Exits the currently selected client. If no client is selected, exits the shell.
   - exit: Exit the shell.
 """
@@ -60,6 +64,7 @@ Available commands:
                 else:
                     prompt_location = ""
                 command = input(f"shovel-shell{prompt_location}> ").strip()
+
                 if self.is_empty_or_whitespace(command):
                     print()
 
@@ -113,7 +118,7 @@ Available commands:
                     if self.selected_client:
                         port = self.client_ports[self.selected_client]
                         resp = self.send_command(host='127.0.0.1', port=port, command="shutdown")
-                        print(resp)                        
+                        print(resp)
                     elif len(parts) > 1:
                         if parts[1] in self.client_ports.keys():
                             port = self.client_ports[parts[1]]
@@ -122,9 +127,43 @@ Available commands:
                         else:
                             print("Unable to find specified client")
                     else:
-                        print("You must select a client before running shutdwon or specify a client in the command: shutdown Client2")
-                else:
-                    print("Unknown command. Type 'help' for a list of commands.")
+                        print("You must select a client before running shutdown or specify a client in the command: shutdown Client2")
+
+                elif command.startswith("update pipeline "):
+                    parts = command.split()
+                    if self.selected_client:
+                        if len(parts) > 2:
+                            port = self.client_ports[self.selected_client]
+                            resp = self.send_command(host='127.0.0.1', port=port, command=command)
+                            print(resp)
+                        else:
+                            print("Please specify a pipeline")
+                    else:
+                        print("You must select a client before using update pipeline")
+
+                elif command.startswith("create pipeline "):
+                    parts = command.split()
+                    if self.selected_client:
+                        if len(parts) > 2:
+                            port = self.client_ports[self.selected_client]
+                            resp = self.send_command(host='127.0.0.1', port=port, command=command)
+                            print(resp)
+                        else:
+                            print("Please specify a pipeline")
+                    else:
+                        print("You must select a client before using update pipeline")
+
+                elif command.startswith("remove pipeline "):
+                    parts = command.split()
+                    if self.selected_client:
+                        if len(parts) > 2:
+                            port = self.client_ports[self.selected_client]
+                            resp = self.send_command(host='127.0.0.1', port=port, command=command)
+                            print(resp)
+                        else:
+                            print("Please specify a pipeline")
+                    else:
+                        print("You must select a client before using update pipeline")
 
             except KeyboardInterrupt:
                 print("\nExiting Client Shell.")

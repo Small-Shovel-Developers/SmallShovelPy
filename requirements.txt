@@ -1,4 +1,6 @@
-apscheduler>=3.10.4
+APScheduler==3.11.0
+pandas==2.2.3
 pytz==2023.3.post1
+Requests==2.32.3
+setuptools==68.1.2
 tqdm==4.66.1
-requests==2.32.3

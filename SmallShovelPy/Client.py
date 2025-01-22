@@ -9,6 +9,8 @@ import socket
 import threading
 import json
 import sys
+import os
+from Pipeline import Pipeline
 
 class Client:
     active_clients = []
@@ -35,14 +37,14 @@ class Client:
             "Schedule Parameters": []
         }
         for s in self.pipelines:
-            data['Pipeline Name'].append(s)
-
             try:
-                data['Trigger Type'].append(self.schedules[s]['trigger_type'])
-                schedule_args = self.schedules[s]['schedule_args']
-                params = '\n'.join([f'{key}={value}' for key,value in schedule_args.items()])
-                # params += '\n-----------------------'
-                data['Schedule Parameters'].append(params)
+                for schedict in self.schedules[s]:
+                    data['Pipeline Name'].append(s)
+                    data['Trigger Type'].append(schedict['trigger_type'])
+                    schedule_args = schedict['schedule_args']
+                    params = '\n'.join([f'{key}={value}' for key,value in schedule_args.items()])
+                    # params += '\n-----------------------'
+                    data['Schedule Parameters'].append(params)
             except:
                 data['Trigger Type'].append('')
                 data['Schedule Parameters'].append('')
@@ -59,10 +61,6 @@ class Client:
             raise ValueError(f"No pipeline with name '{pipeline_name}' found.")
         
         pipeline = self.pipelines[pipeline_name]
-        self.schedules[pipeline_name] = {
-            "trigger_type": trigger_type,
-            "schedule_args": trigger_kwargs
-        }
 
         if trigger_type == "cron":
             trigger = CronTrigger(**trigger_kwargs)
@@ -71,8 +69,54 @@ class Client:
         else:
             raise ValueError("Unsupported trigger type. Use 'cron' or 'interval'.")
         
-        self.scheduler.add_job(pipeline.execute, trigger)
+        job = self.scheduler.add_job(pipeline.execute, trigger)
+        
+        if pipeline_name in self.schedules:
+            self.schedules[pipeline_name].append({
+                "trigger_type": trigger_type,
+                "schedule_args": trigger_kwargs,
+                "job": job
+            })
+        else:
+            self.schedules[pipeline_name] = [{
+                "trigger_type": trigger_type,
+                "schedule_args": trigger_kwargs,
+                "job": job
+            }]
+
         print(f"Scheduled pipeline '{pipeline_name}' with {trigger_type} trigger.")
+
+    def remove_pipeline(self, pipeline_name):
+        if pipeline_name not in self.pipelines:
+            print(f"Pipeline '{pipeline_name}' does not exist.")
+            return False
+        else:
+            # Remove the scheduled job if it exists
+            if pipeline_name in self.schedules:
+                job = self.schedules[pipeline_name].get('job')
+                if job:
+                    self.scheduler.remove_job(job.id)
+                del self.schedules[pipeline_name]
+
+            # Remove the pipeline from my records
+            del self.pipelines[pipeline_name]
+            print(f"Pipeline '{pipeline_name}' has been removed.")
+            return True
+
+    def unschedule_pipeline(self, pipeline_name):
+        if pipeline_name not in self.pipelines:
+            print(f"Pipeline '{pipeline_name}' does not exist.")
+            return False
+        else:
+            # Remove the scheduled job if it exists
+            if pipeline_name in self.schedules:
+                job = self.schedules[pipeline_name].get('job')
+                if job:
+                    self.scheduler.remove_job(job.id)
+                del self.schedules[pipeline_name]
+
+            print(f"Pipeline '{pipeline_name}' has been unscheduled.")
+            return True
 
     def start_scheduler(self, independent=False):
         try:
@@ -214,7 +258,7 @@ class Client:
             return self.show_pipelines() or "No pipelines available."
         
         elif cmd == "run" and len(parts) > 2 and parts[1] == "pipeline":
-            pipeline_name = " ".join(parts[2:])
+            pipeline_name = parts[2]
             if pipeline_name in self.pipelines.keys():
                 # @TODO: Check for successful pipeline run, adjust output as needed.
                 # @TODO: Capture IO output from pipeline to return to user.
@@ -224,7 +268,7 @@ class Client:
                 return f"No pipeline with name {pipeline_name}"
         
         elif cmd == "update" and len(parts) > 2 and parts[1] == "pipeline":
-            pipeline_name = " ".join(parts[2:])
+            pipeline_name = parts[2]
             if pipeline_name in self.pipelines.keys():
                 pipeline = self.pipelines[pipeline_name]
 
@@ -237,12 +281,62 @@ class Client:
                         except:
                             triggers = '\n    - '.join(parts[4:])
                             return f"Unable to schedule {pipeline_name} with triggers:\n{triggers}"
+
+                elif parts[3] == "unschedule":
+                    self.unschedule_pipeline(pipeline_name)
+                    return f"{pipeline_name} has been unscheduled."
+                
                 elif parts[3] == "add_task":
-                    pass
+                    if parts[4] == "file":
+                        file =  ' '.join(parts[5:])
+                        if os.path.isfile(file) and file.endswith('.py'):
+                            pipeline.add_task(file=file)
+                            return f"{pipeline_name} added {file} to tasks"
+                        else:
+                            return "Invalid file path or file type. Must be an existing Python file."
+
+                    elif parts[4] == "command":
+                        # @TODO: 
+                        return "This task type is not currently supported."
+                    
+                    elif parts[4] == "func":
+                        function_code =  ' '.join(parts[5:])
+                        namespace = {}
+                        exec(function_code, namespace)
+                        func_name = function_code.split()[1].split("(")[0]
+                        namespace[func_name].source_code = function_code
+                        if func_name in namespace.keys():
+                            return f"Please select a new function name, {func_name} is already in namespace."
+                        else:
+                            pipeline.add_task(func=namespace[func_name])
+                            return f"{pipeline_name} added func {func_name} to tasks"
+                    else:
+                        return f"Unknown command part: {parts[4]}"
+                else:
+                    return f"Unknown command part: {parts[3]}"
             else:
                 return f"No pipeline with name {pipeline_name}"
         
-        if cmd == "shutdown":
+        elif command.startswith("create pipeline ") and len(parts) > 2:
+            pipeline_name = parts[2]
+            if pipeline_name in self.pipelines.keys():
+                return f"Pipeline with name {pipeline_name} already exists"
+            else:
+                pipeline = Pipeline(name=pipeline_name)
+                self.add_pipeline(pipeline)
+                return self.show_pipelines()
+        
+        elif command.startswith("remove pipeline ") and len(parts) > 2:
+            pipeline_name = parts[2]
+            if pipeline_name in self.pipelines.keys():
+                if self.remove_pipeline(pipeline_name):
+                    return f"{pipeline_name} removed from {self.client_name}"
+                else:
+                    return f"Unable to remove {pipeline_name}"
+            else:
+                return f"No pipeline with name {pipeline_name}"
+        
+        elif cmd == "shutdown":
             print("Shutting down client by remote request...")
             self.stop()
 

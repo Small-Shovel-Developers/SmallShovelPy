@@ -10,7 +10,7 @@ import threading
 import json
 import sys
 import os
-from Pipeline import Pipeline
+from SmallShovelPy import Pipeline
 
 class Client:
     active_clients = []

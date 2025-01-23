@@ -52,7 +52,7 @@ class Logger:
     def critical(self, message):
         self.logger.critical(message)
     
-    def log_io(self, func):
+    def log_io(self, func, verbose=False):
         """
         Decorator that logs any print statements and other IO within the wrapped function.
         

@@ -53,9 +53,29 @@ Available commands:
             return "Unable to connect to the client."
         except Exception as e:
             return f"Error: {e}"
+        
+    def listen_for_logs(self, port):
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        client_socket.bind(('0.0.0.0', port))
+        print("Listening for log broadcasts...")
+
+        try:
+            while True:
+                data, addr = client_socket.recvfrom(1024)  # Buffer size is 1024 bytes
+                message = data.decode("utf-8")
+                # TODO: Tune these print outs to either include the addr or selected client name.
+                print(f"{message}")
+        except KeyboardInterrupt:
+            print("Stopped listening.")
+            client_socket.close()
 
     def shell(self):
         """Start an interactive shell."""
+        print("Checking for active clients...")
+        self.get_active_clients()
         print("Welcome to the Client Shell. Type 'help' for a list of commands.")
         while True:
             try:
@@ -69,6 +89,10 @@ Available commands:
                     print()
 
                 elif command == "exit":
+                    print("Exiting Client Shell.")
+                    break
+
+                elif "superexit" in command:
                     print("Exiting Client Shell.")
                     break
 
@@ -93,6 +117,15 @@ Available commands:
                     client_name = command[len("select client "):].strip()
                     self.selected_client = client_name
                     print(f"Selected client: {client_name}")
+
+                elif command == "listen":
+                    print("Listener is trying...")
+                    if self.selected_client:
+                        port = self.client_ports[self.selected_client] + 2000
+                        print("Initiating listen_for_logs()")
+                        self.listen_for_logs(port)
+                    else:
+                        print("You must select a client to listen to.")
 
                 elif command == "show pipelines":
                     if not self.selected_client:
@@ -164,6 +197,9 @@ Available commands:
                             print("Please specify a pipeline")
                     else:
                         print("You must select a client before using update pipeline")
+
+                else:
+                    print("Command not recognized.")
 
             except KeyboardInterrupt:
                 print("\nExiting Client Shell.")

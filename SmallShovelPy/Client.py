@@ -10,7 +10,11 @@ import threading
 import json
 import sys
 import os
-from SmallShovelPy import Pipeline
+# from SmallShovelPy import Pipeline, Logger2
+from Pipeline import Pipeline
+from Logger2 import Logger2
+
+logger = Logger2("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
 
 class Client:
     active_clients = []
@@ -53,7 +57,9 @@ class Client:
         df = pd.DataFrame(data)
         return df.to_markdown(index=False)
     
+    @logger.capture_output
     def run_pipeline(self, pipeline_name):
+        print(f"Running pipeline: {pipeline_name}")
         pipeline = self.pipelines[pipeline_name]
         return pipeline.execute()
 
@@ -149,6 +155,7 @@ class Client:
         repr = f"Client(pipelines={list(self.pipelines.keys())})"
         return repr
 
+    # @logger.capture_output
     def run(self):
         self.running = True
         print("Looking for an open port, this may take a moment...")
@@ -190,14 +197,15 @@ class Client:
         except Exception as e:
             return f"Error: {e}"
 
+    # @logger.capture_output
     def run_service(self, host='127.0.0.1'):
         """Starts the client and listens for commands."""
         self.running = True
 
         # TODO: Find the next available port in the range 5000-5010
         port = 5000
-        for i in range(11):
-            port += i
+        for i in range(0,11,1):
+            port += 1
             command = "show clients"
             resp = self.send_command(host='127.0.0.1', port=port, command=command)
             try:
@@ -208,9 +216,13 @@ class Client:
                 
             except:
                 self.port = port
+                logger.port = port + 2000
+                print(logger.port)
+                logger.write("log init")
                 if self.client_name in self.client_ports.keys():
                     self.client_name = f"{self.client_name}-{self.port}"
                     print(f"Client of same name was already running. Client name has been updated to: {self.client_name}")
+                break
 
         # Add current instance to client list
         data = {
@@ -243,7 +255,11 @@ class Client:
                 conn, addr = server_socket.accept()
                 threading.Thread(target=handle_client_connection, args=(conn,)).start()
 
+    @logger.capture_output
     def handle_command(self, command):
+
+        print(f"Received command: {command}")
+        
         parts = command.split()
         if not parts:
             return "Invalid command."
@@ -351,10 +367,12 @@ if __name__ == "__main__":
 
     name = "SmallShovelClient"
 
-    if sys.argv[1] == "--name":
-        name = sys.argv[2]
-
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--name":
+            name = sys.argv[2]
+    
     client = Client(client_name=name)
+        
 
     def sample():
         print("Task 1 complete.")
@@ -364,6 +382,6 @@ if __name__ == "__main__":
     p1.add_task(sample)
 
     client.add_pipeline(p1)
-    client.schedule_pipeline("P1", "cron", hour=13, minute=2, day_of_week="wed")
+    client.schedule_pipeline("P1", "cron", hour=1, minute=0, day_of_week="mon-fri")
 
     client.run()

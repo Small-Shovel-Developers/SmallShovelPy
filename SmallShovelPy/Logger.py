@@ -2,7 +2,7 @@ import sys
 import functools
 from datetime import datetime
 import socket
-from DualOutput import DualOutput
+from SmallShovelPy.DualOutput import DualOutput
 
 
 class Logger:

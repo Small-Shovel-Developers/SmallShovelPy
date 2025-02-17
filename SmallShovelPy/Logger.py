@@ -1,84 +1,106 @@
-import logging
-import datetime
-import io
 import sys
+import functools
+from datetime import datetime
+import socket
+from SmallShovelPy import DualOutput
+
 
 class Logger:
     """
-    A logger class that saves log output to a file with the current datetime and a user defined title.
-
-    ## Arguments:
-    - `file`: specified filename
-    - `level`: sets the log level for the instance of the class
-
-    ***Log Levels***
-    - `DEBUG`: Info for debugging purposes.
-    - `INFO`: Confirmation that things are working as expected.
-    - `WARNING`: An indication that something unexpected happened.
-    - `ERRO`: A more serious problem that could impact the results of the opeation
-    - `CRITICAL`: A serious error that results in a stoppage/failure.
+    Logger for capturing and formatting function output.
     """
-    
-    def __init__(self, file, level):
+    def __init__(self, filename, log_as_stdout=False, broadcast_logs=True, port=6000):
+        if filename.endswith('.log'):
+            self.filename = filename
+        else:
+            self.filename = f"{filename}.log"
+        self.buffer = []
+        self.call_stack = []
+        self.log_as_stdout = log_as_stdout
+        self.broadcast_logs = broadcast_logs
+        self.port = port
+        self.log_history = []
+
+    def write(self, message):
+
+        if not message.endswith('\n'):
+            message = message + "\n"
+
+        file = open(self.filename, "a+")
+        file.write(message)
+        file.close()
+
+        if self.broadcast_logs:
+            self.broadcast_message(message.strip('\n'))
         
-        now = datetime.datetime.now()
-        self.filename = f"{file}_{now.strftime('%Y%m%d_%H%M%S')}.log" 
-        self.logger = logging.getLogger(file)
-        self.logger.setLevel(level) 
+        self.log_history.append(message)
 
-        # Create a file handler
-        file_handler = logging.FileHandler(self.filename)
-        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 
-        # Create a stream handler
-        stream_handler = logging.StreamHandler()
+    def broadcast_message(self, message):
+        # Set up the broadcast socket
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-        # Add the file handler to the logger
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(stream_handler)
+        broadcast_address = ('<broadcast>', self.port)
 
-    def info(self, message):
-        self.logger.info(message)
-        
-    def debug(self, message):
-        self.logger.debug(message)
+        server_socket.sendto(message.encode(), broadcast_address)
+        server_socket.close()
 
-    def warning(self, message):
-        self.logger.warning(message)
 
-    def error(self, message):
-        self.logger.error(message)
-
-    def critical(self, message):
-        self.logger.critical(message)
-    
-    def log_io(self, func, verbose=False):
-        """
-        Decorator that logs any print statements and other IO within the wrapped function.
-        
-        ***Decorator Example Usage:***
-            @Logger("example_logs", logging.INFO).log_io
-        """
+    def capture_output(self, func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # Capture print statements and other IO
-            old_stdout = sys.stdout
-            new_stdout = io.StringIO()
-            sys.stdout = new_stdout
+            self.call_stack.append(func.__name__)
+            indent_level = len(self.call_stack) - 1
 
-            # Run the function and capture any exceptions
+            # Log the function call
+            args_str = ', '.join(map(str, args))
+            kwargs_str = ', '.join(f"{k}={v}" for k, v in kwargs.items())
+            header = {
+                "Time": f"{datetime.now()}",
+                "Message": f"{'    ' * indent_level}{func.__name__}: Args({args_str}), kwargs({kwargs_str})",
+                "Level": " - INFO  - ",
+            }
+            if header in self.buffer:
+                self.buffer.remove(header)
+            if header not in self.buffer:
+                self.buffer.append(header)
+
+            dual_output = DualOutput(
+                capture_prefix="    " * (indent_level+1),
+                stdout_prefix="    " * (indent_level+1),
+                indent_level=indent_level,
+                log_as_stdout=self.log_as_stdout,
+                logger=self
+            )
+            old_stdout = sys.stdout
+            sys.stdout = dual_output
+
             try:
                 result = func(*args, **kwargs)
             except Exception as e:
-                self.error(e)
-                raise  # Re-raise the exception
-
+                print(f"Captured Error: {e}")
+                result = None
             finally:
                 sys.stdout = old_stdout
-                captured_output = new_stdout.getvalue()
-                if captured_output:
-                    self.info(f"IO output from {func.__name__}: {captured_output}")
-                else:
-                    self.info(f"No IO output from {func.__name__}")
+                self.call_stack.pop()
+
+            captured_output = dual_output.getvalue()
+            self.buffer += captured_output
+
+            # Write log
+            for line in self.buffer:
+                if line['Message'].strip() + "\n" not in self.log_history:
+                    log_entry = f"{line['Time']}{line['Level']}{line['Message']}"
+                    self.write(log_entry + "\n")
+                # self.buffer.remove(line)
+
+            # Clear the buffer
+            self.buffer = []
+            if len(self.call_stack) == 0:
+                self.log_history = []
 
             return result
+            self.buffer = []
+
         return wrapper

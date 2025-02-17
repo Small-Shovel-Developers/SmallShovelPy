@@ -10,7 +10,7 @@ import threading
 import json
 import sys
 import os
-from SmallShovelPy import Pipeline, Logger
+from . import Pipeline, Logger
 # from Pipeline import Pipeline
 # from Logger2 import Logger2
 

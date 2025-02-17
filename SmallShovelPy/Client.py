@@ -10,11 +10,11 @@ import threading
 import json
 import sys
 import os
-from SmallShovelPy import Pipeline, Logger2
+from SmallShovelPy import Pipeline, Logger
 # from Pipeline import Pipeline
 # from Logger2 import Logger2
 
-logger = Logger2("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
+logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
 
 class Client:
     active_clients = []

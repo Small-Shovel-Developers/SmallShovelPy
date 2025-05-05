@@ -2,7 +2,14 @@ import sys
 import functools
 from datetime import datetime
 import socket
-from SmallShovelPy.DualOutput import DualOutput
+
+try:
+    from SmallShovelPy.DualOutput import DualOutput
+except ModuleNotFoundError:
+    try:
+        from DualOutput import DualOutput
+    except ImportError as e:
+        raise ImportError(f"Could not import Pipeline or Logger: {e}")
 
 
 class Logger:

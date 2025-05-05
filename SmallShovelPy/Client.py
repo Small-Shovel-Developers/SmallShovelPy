@@ -10,24 +10,93 @@ import threading
 import json
 import sys
 import os
-from SmallShovelPy import Pipeline, Logger
+import datetime
+try:
+    from SmallShovelPy import Pipeline, Logger
+except ModuleNotFoundError:
+    try:
+        from Pipeline import Pipeline
+        from Logger import Logger
+    except ImportError as e:
+        raise ImportError(f"Could not import Pipeline or Logger: {e}")
+
 # from Pipeline import Pipeline
 # from Logger2 import Logger2
 
-logger = Logger.Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
+logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
 
 class Client:
     active_clients = []
 
-    def __init__(self, client_name):
-        self.client_name = client_name
+    def __init__(self, client_name=None, save_file=None):
+        self.scheduler = BackgroundScheduler()
+        self.pipelines = {}
+        self.schedules = {}
+        self.active_clients = []
+        self.client_ports = {}
         self.client_id = 0
         self.port = 5000
+
+        if client_name and not save_file:
+            self.client_name = client_name
+
+        elif save_file and not client_name:
+            self.load_from_save(config_file=save_file)
+
+        elif client_name and save_file:
+            self.load_from_save(config_file=save_file)
+            self.client_name = client_name
+
+        elif not save_file and not client_name:
+            raise ValueError("Must specify client name or config file.")
+
+    def load_from_save(self, config_file):
+        import json
+
+        def restore_function(source):
+            namespace = {}
+            try:
+                exec(source, namespace)
+                func_name = source.split('def ')[1].split('(')[0].strip()
+                func = namespace[func_name]
+                func.source_code = source
+                return func
+            except Exception as e:
+                print(f"Failed to restore function from source: {e}")
+                return None
+
+        with open(config_file, "r") as f:
+            config = json.load(f)
+
+        # Currently set to overwrite all current settings. May update this later to append new Pipelines very conveniently combining clients.
+        self.client_name = config['client_name']
+        self.client_id = config['client_id']
         self.pipelines = {}
         self.schedules = {}
         self.scheduler = BackgroundScheduler()
         self.active_clients = []
         self.client_ports = {}
+
+        for pipe_data in config['pipelines']:
+            pipeline = Pipeline(name=pipe_data['name'])
+
+            for task in pipe_data['tasks']:
+                task_type = task['task_type']
+                if task_type == 'func':
+                    func = restore_function(task['source'])
+                    if func:
+                        pipeline.add_task(func=func)
+                elif task_type == 'file':
+                    pipeline.add_task(file=task['path'])
+                elif task_type == 'shell':
+                    pipeline.add_task(shell=task['shell'], command=task['command'])
+
+            self.pipelines[pipeline.name] = pipeline
+
+            for sched in pipe_data['schedules']:
+                self.schedule_pipeline(pipeline.name, sched['trigger_type'], **sched['schedule_args'])
+        
+        return True
 
     def add_pipeline(self, pipeline):
         if pipeline.name in self.pipelines:
@@ -202,9 +271,8 @@ class Client:
         """Starts the client and listens for commands."""
         self.running = True
 
-        # TODO: Find the next available port in the range 5000-5010
         port = 5000
-        for i in range(0,11,1):
+        for i in range(0,101,1):
             port += 1
             command = "show clients"
             resp = self.send_command(host='127.0.0.1', port=port, command=command)
@@ -254,6 +322,80 @@ class Client:
             while self.running:
                 conn, addr = server_socket.accept()
                 threading.Thread(target=handle_client_connection, args=(conn,)).start()
+
+    def save_config(self, filepath):
+
+        def get_function_source(func):
+            import inspect
+            if callable(func):
+                if func.__module__ is None:
+                    if hasattr(func, "source_code"):
+                        return func.source_code
+                    else:
+                        try:
+                            return inspect.getsource(func)
+                        except:
+                            return "Unable to retrieve source"
+                else:
+                    try:
+                        return inspect.getsource(func)
+                    except TypeError:
+                        return "Unable to retrieve source - this is likely a compiled function."
+            else:
+                return "Not a function"
+
+        config = {
+            "client_name": self.client_name,
+            "client_id": self.client_id,
+            "saved_at": datetime.datetime.utcnow().isoformat(),
+            "pipelines": []
+        }
+
+        for pipeline_name, pipeline in self.pipelines.items():
+            pipeline_data = {
+                "name": pipeline.name,
+                "tasks": [],
+                "schedules": []
+            }
+
+            # Add tasks
+            for task in pipeline.tasks:
+                task_type = task.get('task_type')
+                task_obj = task.get('task')
+
+                if task_type == "func":
+                    pipeline_data["tasks"].append({
+                        "task_type": "func",
+                        "source": get_function_source(task_obj)
+                    })
+                elif task_type == "file":
+                    pipeline_data["tasks"].append({
+                        "task_type": "file",
+                        "path": task_obj
+                    })
+                elif task_type == "shell":
+                    pipeline_data["tasks"].append({
+                        "task_type": "shell",
+                        "shell": task_obj['shell'],
+                        "command": task_obj['command']
+                    })
+
+            # Add schedules (may be multiple per pipeline)
+            if pipeline_name in self.schedules:
+                for sched in self.schedules[pipeline_name]:
+                    pipeline_data["schedules"].append({
+                        "trigger_type": sched["trigger_type"],
+                        "schedule_args": sched["schedule_args"]
+                    })
+
+            config["pipelines"].append(pipeline_data)
+
+        # Save to file
+        with open(filepath, "w") as f:
+            json.dump(config, f, indent=4)
+
+        print(f"Configuration saved to {filepath}")
+        return True
 
     @logger.capture_output
     def handle_command(self, command):

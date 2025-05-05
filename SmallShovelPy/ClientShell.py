@@ -2,6 +2,9 @@ import socket
 import threading
 import json
 import pandas as pd
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.history import FileHistory
 
 class ClientShell:
     def __init__(self):
@@ -64,7 +67,7 @@ Available commands:
 
         try:
             while True:
-                data, addr = client_socket.recvfrom(1024)  # Buffer size is 1024 bytes
+                data, addr = client_socket.recvfrom(1024)  # Buffer size is 1024 bytes, if logs get too big this may need to expanded
                 message = data.decode("utf-8")
                 # TODO: Tune these print outs to either include the addr or selected client name.
                 print(f"{message}")
@@ -73,26 +76,31 @@ Available commands:
             client_socket.close()
 
     def shell(self):
-        """Start an interactive shell."""
+        """Start an interactive shell with prompt_toolkit."""
         print("Checking for active clients...")
         self.get_active_clients()
+
+        base_commands = [
+            "show clients", "select client", "show pipelines", "run pipeline",
+            "create pipeline", "update pipeline", "remove pipeline",
+            "shutdown", "ex", "exit", "help", "listen"
+        ]
+        completer = WordCompleter(base_commands, ignore_case=True)
+        session = PromptSession(
+            completer=completer,
+            history=FileHistory('.client_shell_history')
+        )
+
         print("Welcome to the Client Shell. Type 'help' for a list of commands.")
         while True:
             try:
-                if self.selected_client:
-                    prompt_location = f"-{self.selected_client}"
-                else:
-                    prompt_location = ""
-                command = input(f"shovel-shell{prompt_location}> ").strip()
+                prompt_location = f"-{self.selected_client}" if self.selected_client else ""
+                command = session.prompt(f"shovel-shell{prompt_location}> ").strip()
 
                 if self.is_empty_or_whitespace(command):
                     print()
 
-                elif command == "exit":
-                    print("Exiting Client Shell.")
-                    break
-
-                elif "superexit" in command:
+                elif command == "exit" or "superexit" in command:
                     print("Exiting Client Shell.")
                     break
 
@@ -105,14 +113,13 @@ Available commands:
 
                 elif command == "show clients":
                     print("Active clients:")
-                    # Placeholder: Replace with real logic to fetch client list
                     clients = self.get_active_clients()
                     if clients:
                         df = pd.DataFrame(clients)
                         print(df.to_markdown(index=False))
                     else:
                         print("No clients available")
-                
+
                 elif command.startswith("select client "):
                     client_name = command[len("select client "):].strip()
                     self.selected_client = client_name
@@ -140,8 +147,6 @@ Available commands:
                     if not self.selected_client:
                         print("No client selected. Use 'select client <client_name>' first.")
                     else:
-                        pipeline_name = command[len("run pipeline "):].strip()
-                        print(f"Running pipeline '{pipeline_name}' on client '{self.selected_client}'...")
                         port = self.client_ports[self.selected_client]
                         resp = self.send_command(host='127.0.0.1', port=port, command=command)
                         print(resp)
@@ -153,7 +158,7 @@ Available commands:
                         resp = self.send_command(host='127.0.0.1', port=port, command="shutdown")
                         print(resp)
                     elif len(parts) > 1:
-                        if parts[1] in self.client_ports.keys():
+                        if parts[1] in self.client_ports:
                             port = self.client_ports[parts[1]]
                             resp = self.send_command(host='127.0.0.1', port=port, command="shutdown")
                             print(resp)
@@ -162,7 +167,7 @@ Available commands:
                     else:
                         print("You must select a client before running shutdown or specify a client in the command: shutdown Client2")
 
-                elif command.startswith("update pipeline "):
+                elif any(command.startswith(prefix) for prefix in ["update pipeline ", "create pipeline ", "remove pipeline "]):
                     parts = command.split()
                     if self.selected_client:
                         if len(parts) > 2:
@@ -172,31 +177,7 @@ Available commands:
                         else:
                             print("Please specify a pipeline")
                     else:
-                        print("You must select a client before using update pipeline")
-
-                elif command.startswith("create pipeline "):
-                    parts = command.split()
-                    if self.selected_client:
-                        if len(parts) > 2:
-                            port = self.client_ports[self.selected_client]
-                            resp = self.send_command(host='127.0.0.1', port=port, command=command)
-                            print(resp)
-                        else:
-                            print("Please specify a pipeline")
-                    else:
-                        print("You must select a client before using update pipeline")
-
-                elif command.startswith("remove pipeline "):
-                    parts = command.split()
-                    if self.selected_client:
-                        if len(parts) > 2:
-                            port = self.client_ports[self.selected_client]
-                            resp = self.send_command(host='127.0.0.1', port=port, command=command)
-                            print(resp)
-                        else:
-                            print("Please specify a pipeline")
-                    else:
-                        print("You must select a client before using update pipeline")
+                        print("You must select a client before using this command")
 
                 else:
                     print("Command not recognized.")

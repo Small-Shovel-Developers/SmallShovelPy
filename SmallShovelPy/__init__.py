@@ -2,7 +2,11 @@ import os
 import importlib
 import json
 import json
-from importlib.resources import files
+try:
+    from importlib.resources import files
+except ImportError:
+    from importlib_resources import files  # Backport for Python < 3.9
+
 
 
 # Metadata

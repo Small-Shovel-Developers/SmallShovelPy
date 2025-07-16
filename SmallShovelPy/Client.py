@@ -23,12 +23,21 @@ except ModuleNotFoundError or TypeError:
 try:
     from SmallShovelPy import Logger
     logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
-except ModuleNotFoundError or TypeError:
+except ModuleNotFoundError:
     try:
         from Logger import Logger
         logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
     except ImportError as e:
         raise ImportError(f"Could not import Logger: {e}")
+except TypeError:
+    try:
+        from SmallShovelPy import Logger
+        logger = Logger.Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
+    except ImportError as e:
+        raise ImportError(f"Could not import Logger: {e}")
+    except:
+        from Logger import Logger
+        logger = Logger.Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
 
 class Client:
     active_clients = []

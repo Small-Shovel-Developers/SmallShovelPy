@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import STATE_RUNNING
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+import psutil
 import pytz
 import time
 import pandas as pd
@@ -142,6 +143,19 @@ class Client:
             trigger = CronTrigger(**trigger_kwargs)
         elif trigger_type == "interval":
             trigger = IntervalTrigger(**trigger_kwargs)
+        elif trigger_type == "monitor":
+            metric = trigger_kwargs.get("metric", "cpu")
+            threshold = float(trigger_kwargs.get("threshold", 90))
+            duration = float(trigger_kwargs.get("duration", 30))
+            interval = float(trigger_kwargs.get("interval", 5))
+            stop_event = threading.Event()
+            thread = threading.Thread(
+                target=self.monitor_trigger_loop,
+                args=(pipeline, metric, threshold, duration, interval, stop_event),
+                daemon=True
+            )
+            thread.start()
+            trigger = {"type": "monitor", "thread": thread, "stop_event": stop_event}
         else:
             raise ValueError("Unsupported trigger type. Use 'cron' or 'interval'.")
         
@@ -168,11 +182,7 @@ class Client:
             return False
         else:
             # Remove the scheduled job if it exists
-            if pipeline_name in self.schedules:
-                job = self.schedules[pipeline_name].get('job')
-                if job:
-                    self.scheduler.remove_job(job.id)
-                del self.schedules[pipeline_name]
+            self.unschedule_pipeline(pipeline_name)
 
             # Remove the pipeline from my records
             del self.pipelines[pipeline_name]
@@ -186,9 +196,14 @@ class Client:
         else:
             # Remove the scheduled job if it exists
             if pipeline_name in self.schedules:
-                job = self.schedules[pipeline_name].get('job')
-                if job:
-                    self.scheduler.remove_job(job.id)
+                for sched in self.schedules[pipeline_name]:
+                    job = sched.get('job')
+                    if job:
+                        self.scheduler.remove_job(job.id)
+                    if sched.get("trigger_type") == "monitor":
+                        stop_event = sched["schedule_args"].get("stop_event")
+                        if stop_event:
+                            stop_event.set()
                 del self.schedules[pipeline_name]
 
             print(f"Pipeline '{pipeline_name}' has been unscheduled.")
@@ -223,6 +238,31 @@ class Client:
     def __repr__(self):
         repr = f"Client(pipelines={list(self.pipelines.keys())})"
         return repr
+    
+    def monitor_trigger_loop(self, pipeline, metric, threshold, duration, interval, stop_event):
+        start_time = None
+
+        while not stop_event.is_set():
+            if metric == "cpu":
+                usage = psutil.cpu_percent(interval=1)
+            elif metric == "memory":
+                usage = psutil.virtual_memory().percent
+            else:
+                print(f"Unsupported metric '{metric}'")
+                break
+
+            if usage >= threshold:
+                if start_time is None:
+                    start_time = time.time()
+                elif time.time() - start_time >= duration:
+                    logger.write(f"Monitor triggered: {metric} usage = {usage}%, threshold = {threshold}%")
+                    pipeline.execute()
+                    start_time = None  # Reset so we only run once per sustained high usage
+            else:
+                start_time = None
+
+            time.sleep(interval)
+
 
     # @logger.capture_output
     def run(self):

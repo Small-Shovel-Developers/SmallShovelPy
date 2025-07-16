@@ -4,5 +4,5 @@ numpy==1.21.6
 prompt_toolkit==3.0.39
 pytz==2023.3.post1
 Requests
-setuptools==68.1.2
-tqdm==4.66.1
+setuptools
+tqdm

@@ -13,18 +13,22 @@ import sys
 import os
 import datetime
 try:
-    from SmallShovelPy import Pipeline, Logger
-except ModuleNotFoundError:
+    from SmallShovelPy import Pipeline
+except ModuleNotFoundError or TypeError:
     try:
         from Pipeline import Pipeline
-        from Logger import Logger
     except ImportError as e:
-        raise ImportError(f"Could not import Pipeline or Logger: {e}")
+        raise ImportError(f"Could not import Pipeline: {e}")
 
-# from Pipeline import Pipeline
-# from Logger2 import Logger2
-
-logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
+try:
+    from SmallShovelPy import Logger
+    logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
+except ModuleNotFoundError or TypeError:
+    try:
+        from Logger import Logger
+        logger = Logger("my_log", log_as_stdout=True, broadcast_logs=True, port=7001)
+    except ImportError as e:
+        raise ImportError(f"Could not import Logger: {e}")
 
 class Client:
     active_clients = []
